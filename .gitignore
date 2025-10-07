@@ -1,0 +1,15 @@
+node_modules/
+.next/
+out/
+dist/
+build/
+.env
+.env.*
+*.log
+.vscode/
+.idea/
+coverage/
+.DS_Store
+npm-debug.log*
+yarn-error.log*
+package-lock.json
