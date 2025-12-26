@@ -64,24 +64,53 @@ export default function Inbox() {
   }, [page])
 
   const updateStatus = async (messageId: string, isApprove: boolean) => {
-    if (isApprove) {
-      const ok = confirm('Bu mesajı onaylamak istiyor musunuz?')
-      if (!ok) return
-      // Hem durum güncelle hem SSE yayınını tetikle
-      await fetch(`http://localhost:5000/api/Dialog/${messageId}/approve`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(true) })
-      alert('Mesaj onaylandı')
-      return
+    const endpoint = `http://localhost:5000/api/Dialog/${messageId}/approve`
+    try {
+      if (isApprove) {
+        const ok = confirm('Bu mesajı onaylamak istiyor musunuz?')
+        if (!ok) return
+        const res = await fetch(endpoint, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(true), // bool göndererek eski API ile uyumlu kal
+        })
+        if (!res.ok) {
+          const txt = await res.text()
+          alert(`Onay başarısız: ${txt || res.status}`)
+          return
+        }
+        alert('Mesaj onaylandı')
+        return
+      }
+  
+      const reason = prompt('Reddetme sebebi:') || ''
+      // Önce REST endpoint ile reddetme sebebini kaydet
+      const restRes = await fetch(`http://localhost:5000/api/Message/message/${messageId}/moderate`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isApprove: false, reason }),
+      })
+      if (!restRes.ok) {
+        const txt = await restRes.text()
+        alert(`Reddetme başarısız: ${txt || restRes.status}`)
+        return
+      }
+      // Ardından SSE tetiklemek için bool false gönder
+      const res = await fetch(endpoint, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(false),
+      })
+      if (!res.ok) {
+        const txt = await res.text()
+        alert(`Bildirim gönderilemedi: ${txt || res.status}`)
+        return
+      }
+      alert('Mesaj reddedildi')
+    } catch (err) {
+      console.error('updateStatus error', err)
+      alert('İşlem sırasında bir hata oluştu')
     }
-    const reason = prompt('Reddetme sebebi:') || ''
-    // Yeni REST endpoint: reason ile birlikte yaz
-    await fetch(`http://localhost:5000/api/Message/message/${messageId}/moderate`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ isApprove: false, reason })
-    })
-    // SSE yayınını tetikle (control-panel-service üzerinden)
-    await fetch(`http://localhost:5000/api/Dialog/${messageId}/approve`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(false)
-    })
-    alert('Mesaj reddedildi')
   }
 
   return (
